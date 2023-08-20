@@ -130,7 +130,7 @@ class ILI948x_t40_p {
     void setAddrWindow(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2);
 
     void pushPixels16bit(const uint16_t * pcolors, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2);
-    void pushPixels8bit(const uint8_t * pcolors, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2)
+    void pushPixels8bit(const uint8_t * pcolors, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2);
 
 
     uint8_t readCommand(uint8_t const cmd);

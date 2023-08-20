@@ -8,12 +8,11 @@ void setup() {
   Serial.print(CrashReport);
   
   lcd.begin();
+  lcd.setBitDepth(16);
   lcd.setRotation(3);
 }
 
 void loop() {
   delay(1000);
   lcd.pushPixels16bit(flexio_teensy_mm,0,0,479,319); // 480x320
-  delay(1000);
-  delay(1000);
 }

@@ -1,8 +1,8 @@
 #include "ILI948x_t40_p.h"
 //DMAMEM uint32_t framebuff[DATABUFBYTES];
 
-#if !defined(ARDUINO_TEENSY_MICROMOD)
-#error This library only supports the Teensy Micromod!
+#if !defined(ARDUINO_TEENSY40)
+#error This library only supports the Teensy 4.0!
 #endif
 
 FLASHMEM ILI948x_t40_p::ILI948x_t40_p(int8_t dc, int8_t cs, int8_t rst) 
@@ -202,12 +202,6 @@ FLASHMEM void ILI948x_t40_p::invertDisplay(bool invert)
   SglBeatWR_nPrm_8(invert ? ILI9488_INVON : ILI9488_INVOFF,0,0);
 }
 
-FLASHMEM void ILI948x_t40_p::onCompleteCB(CBF callback)
-{
-  _callback = callback;
-  isCB = true;
-}
-
 FASTRUN void ILI948x_t40_p::setAddrWindow(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) 
 {
   uint8_t Command;
@@ -258,22 +252,6 @@ FASTRUN void ILI948x_t40_p::pushPixels16bit(const uint16_t * pcolors, uint16_t x
   }
   SglBeatWR_nPrm_16(ILI9488_RAMWR, pcolors, area);
 }
-
-FASTRUN void ILI948x_t40_p::pushPixels16bitDMA(const uint16_t * pcolors, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2){
-  while(WR_DMATransferDone == false)
-  {
-    //Wait for any DMA transfers to complete
-  }
-  uint32_t area = (x2-x1+1)*(y2-y1+1);
-  if (!((_lastx1 == x1) && (_lastx2 == x2) && (_lasty1 == y1) && (_lasty2 == y2))) {
-  setAddrWindow(x1, y1, x2, y2);
-     _lastx1 = x1;  _lastx2 = x2;  _lasty1 = y1;  _lasty2 = y2;
-  }
-
-  MulBeatWR_nPrm_DMA(ILI9488_RAMWR, pcolors, area);
-}
-
-
 
 
 
@@ -1140,7 +1118,7 @@ FASTRUN uint8_t ILI948x_t40_p::readCommand(uint8_t const cmd){
     DCLow();
 
     /* Write command index */
-    p->SHIFTBUF[0] = cmd;
+    p->SHIFTBUF[0] = ((cmd & 0x0F) <<0) | (((cmd >> 4) & 0x0F) << 6);
 
     /*Wait for transfer to be completed */
     while(0 == (p->SHIFTSTAT & (1 << 0)))
@@ -1167,7 +1145,8 @@ FASTRUN uint8_t ILI948x_t40_p::readCommand(uint8_t const cmd){
     while (0 == (p->SHIFTSTAT & (1 << 3)))
         {
         }
-    data = p->SHIFTBUFBYS[3];
+        uint32_t output = p->SHIFTBUFBYS[3];
+    data = ((output & 0x0F)<< 0) | (((output >> 6) & 0x03) << 4) | (((output >> 8) & 0x03) << 6);
 
     //Serial.printf("Dummy 0x%x, data 0x%x\n", dummy, data);
     
@@ -1267,7 +1246,7 @@ FASTRUN void ILI948x_t40_p::SglBeatWR_nPrm_8(uint32_t const cmd, const uint8_t *
     DCLow();
 
     /* Write command index */
-    p->SHIFTBUF[0] = cmd;
+    p->SHIFTBUF[0] = ((cmd & 0x0F) <<0) | (((cmd >> 4) & 0x0F) << 6);
 
     /*Wait for transfer to be completed */
     while(0 == (p->SHIFTSTAT & (1 << 0)))
@@ -1287,7 +1266,8 @@ FASTRUN void ILI948x_t40_p::SglBeatWR_nPrm_8(uint32_t const cmd, const uint8_t *
     {
         for(i = 0; i < length; i++)
         {    
-            p->SHIFTBUF[0] = *value++;
+            uint8_t buf = *value++;
+            p->SHIFTBUF[0] = (((buf & 0x0F) << 0) | (((buf >> 4)& 0x0F)<< 6));
             while(0 == (p->SHIFTSTAT & (1 << 0)))
             {  
             }
@@ -1315,7 +1295,7 @@ FASTRUN void ILI948x_t40_p::SglBeatWR_nPrm_16(uint32_t const cmd, const uint16_t
     //microSecondDelay();
     
     /* Write command index */
-    p->SHIFTBUF[0] = cmd;
+    p->SHIFTBUF[0] = ((cmd & 0x0F) <<0) | (((cmd >> 4) & 0x0F) << 6);
 
     /*Wait for transfer to be completed */
     while(0 == (p->TIMSTAT & (1 << 0)))
@@ -1334,26 +1314,26 @@ FASTRUN void ILI948x_t40_p::SglBeatWR_nPrm_16(uint32_t const cmd, const uint16_t
             while(0 == (p->SHIFTSTAT & (1U << 0)))
             {
             }
-            p->SHIFTBUF[0] = buf >> 8;
+            p->SHIFTBUF[0] = (((buf & 0x0F) << 0) | (((buf >> 4)& 0x0F)<< 6)) >> 8;
 
             while(0 == (p->SHIFTSTAT & (1U << 0)))
             {
             }
-            p->SHIFTBUF[0] = buf & 0xFF;
+            p->SHIFTBUF[0] = (((buf & 0x0F) << 0) | (((buf >> 4)& 0x0F)<< 6)) & 0xFF;
         }
         buf = *value++;
         /* Write the last byte */
         while(0 == (p->SHIFTSTAT & (1U << 0)))
             {
             }
-        p->SHIFTBUF[0] = buf >> 8;
+        p->SHIFTBUF[0] = (((buf & 0x0F) << 0) | (((buf >> 4)& 0x0F)<< 6)) >> 8;
 
         while(0 == (p->SHIFTSTAT & (1U << 0)))
         {
         }
         p->TIMSTAT |= (1U << 0);
 
-        p->SHIFTBUF[0] = buf & 0xFF;
+        p->SHIFTBUF[0] = (((buf & 0x0F) << 0) | (((buf >> 4)& 0x0F)<< 6)) & 0xFF;
 
         /*Wait for transfer to be completed */
         while(0 == (p->TIMSTAT |= (1U << 0)))
