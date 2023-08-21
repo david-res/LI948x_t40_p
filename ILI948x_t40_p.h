@@ -11,9 +11,8 @@
 
 #include "Arduino.h"
 #include "FlexIO_t4.h"
-#include "DMAChannel.h"
 
-#define BUS_WIDTH 10
+#define BUS_WIDTH 9
 #define SHIFTNUM 4 // number of shifters used (must be 1, 2, 4, or 8)
 #define SHIFTER_DMA_REQUEST 3 // only 0, 1, 2, 3 expected to work
 
@@ -148,7 +147,7 @@ class ILI948x_t40_p {
   FlexIOHandler *pFlex;
   IMXRT_FLEXIO_t *p;
   const FlexIOHandler::FLEXIO_Hardware_t *hw;
-  static DMAChannel flexDma;
+  
    
     uint8_t _buad_div = 20; 
 

@@ -226,14 +226,14 @@ FASTRUN void ILI948x_t40_p::setAddrWindow(uint16_t x1, uint16_t y1, uint16_t x2,
 
 FASTRUN void ILI948x_t40_p::displayInfo(){
   CSLow();
-  Serial.printf("Manufacturer ID: 0x%02X\n",    readCommand(ILI9488_RDID1)); 
-  Serial.printf("Module Version ID: 0x%02X\n",  readCommand(ILI9488_RDID2)); 
-  Serial.printf("Module ID: 0x%02X\n",          readCommand(ILI9488_RDID3)); 
-	Serial.printf("Display Power Mode: 0x%02X\n", readCommand(ILI9488_RDMODE));
+  Serial.printf("Manufacturer ID: 0x%02X\n",    readCommand(0x04)); 
+  //Serial.printf("Module Version ID: 0x%02X\n",  readCommand(ILI9488_RDID2)); 
+  //Serial.printf("Module ID: 0x%02X\n",          readCommand(ILI9488_RDID3)); 
+	//Serial.printf("Display Power Mode: 0x%02X\n", readCommand(ILI9488_RDMODE));
 	Serial.printf("MADCTL Mode: 0x%02X\n",        readCommand(ILI9488_RDMADCTL));
 	Serial.printf("Pixel Format: 0x%02X\n",       readCommand(ILI9488_RDCOLMOD));
 	Serial.printf("Image Format: 0x%02X\n",       readCommand(ILI9488_RDIMGFMT)); 
-  Serial.printf("Signal Mode: 0x%02X\n",        readCommand(ILI9488_RDDSM)); 
+  //Serial.printf("Signal Mode: 0x%02X\n",        readCommand(ILI9488_RDDSM)); 
   uint8_t sdRes = readCommand(ILI9488_RDSELFDIAG);
   Serial.printf("Self Diagnostic: %s (0x%02X)\n", sdRes == 0xc0 ? "OK" : "Failed", sdRes);
 CSHigh();
@@ -241,10 +241,7 @@ CSHigh();
 
 FASTRUN void ILI948x_t40_p::pushPixels16bit(const uint16_t * pcolors, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2)
 {
-  while(WR_DMATransferDone == false)
-  {
-    //Wait for any DMA transfers to complete
-  }
+  
   uint32_t area = (x2-x1+1)*(y2-y1+1);
   if (!((_lastx1 == x1) && (_lastx2 == x2) && (_lasty1 == y1) && (_lasty2 == y2))) {
   setAddrWindow( x1, y1, x2, y2);
@@ -1008,16 +1005,16 @@ FASTRUN void ILI948x_t40_p::FlexIO_Init()
     /* Pointer to the hardware structure in the FlexIO channel */
     hw = &pFlex->hardware();
     /* Basic pin setup */
-    pinMode(20, OUTPUT); // FlexIO2:0 WR
-    pinMode(21, OUTPUT); // FlexIO2:1 RD
-    pinMode(19, OUTPUT); // FlexIO2:4 D0
-    pinMode(18, OUTPUT); // FlexIO2:5 |
-    pinMode(14, OUTPUT); // FlexIO2:6 |
-    pinMode(15, OUTPUT); // FlexIO2:7 |
-    pinMode(17, OUTPUT); // FlexIO2:8 |
-    pinMode(16, OUTPUT); // FlexIO2:9 |
-    pinMode(22, OUTPUT); // FlexIO2:10 |
-    pinMode(23, OUTPUT); // FlexIO2:11 D7
+    pinMode(20, OUTPUT); // FlexIO3:10: RD
+    pinMode(21, OUTPUT); // FlexIO3:11 WR
+    pinMode(19, OUTPUT); // FlexIO3:0 D0
+    pinMode(18, OUTPUT); // FlexIO3:1 |
+    pinMode(14, OUTPUT); // FlexIO3:2 |
+    pinMode(15, OUTPUT); // FlexIO3:3 |
+    pinMode(17, OUTPUT); // FlexIO3:6 |
+    pinMode(16, OUTPUT); // FlexIO3:7 |
+    pinMode(22, OUTPUT); // FlexIO3:8 |
+    pinMode(23, OUTPUT); // FlexIO3:9 D7
 
     digitalWriteFast(10,HIGH);
 
@@ -1048,6 +1045,9 @@ FASTRUN void ILI948x_t40_p::FlexIO_Init()
     pFlex->setIOPinToFlexMode(22);
     pFlex->setIOPinToFlexMode(23);
 
+    //pinMode(21, OUTPUT);
+    //digitalWrite(21, HIGH);
+
 
     /* Enable the clock */
     hw->clock_gate_register |= hw->clock_gate_mask  ;
@@ -1062,7 +1062,7 @@ FASTRUN void ILI948x_t40_p::FlexIO_Config_SnglBeat_Read()
     p->CTRL |= FLEXIO_CTRL_SWRST;
     p->CTRL &= ~FLEXIO_CTRL_SWRST;
 
-    gpioRead();
+    //gpioRead();
 
     /* Configure the shifters */
     p->SHIFTCFG[3] = 
@@ -1109,16 +1109,14 @@ FASTRUN void ILI948x_t40_p::FlexIO_Config_SnglBeat_Read()
 }
 
 FASTRUN uint8_t ILI948x_t40_p::readCommand(uint8_t const cmd){
-  while(WR_DMATransferDone == false)
-  {
-    //Wait for any DMA transfers to complete
-  }
+  
 
     FlexIO_Config_SnglBeat();
     DCLow();
 
     /* Write command index */
-    p->SHIFTBUF[0] = ((cmd & 0x0F) <<0) | (((cmd >> 4) & 0x0F) << 6);
+    Serial.printf("CMD: 0x%X, SHIFT: 0x%X \n", cmd,((cmd & 0x0F) | (((cmd & 0xF0) >> 4) << 6)));
+    p->SHIFTBUF[0] = (cmd & 0x0F) | (((cmd & 0xF0) >> 4) << 6);
 
     /*Wait for transfer to be completed */
     while(0 == (p->SHIFTSTAT & (1 << 0)))
@@ -1140,15 +1138,15 @@ FASTRUN uint8_t ILI948x_t40_p::readCommand(uint8_t const cmd){
     while (0 == (p->SHIFTSTAT & (1 << 3)))
         {
         }
-    dummy = p->SHIFTBUFBYS[3];
+    dummy = p->SHIFTBUF[3];
 
     while (0 == (p->SHIFTSTAT & (1 << 3)))
         {
         }
-        uint32_t output = p->SHIFTBUFBYS[3];
-    data = ((output & 0x0F)<< 0) | (((output >> 6) & 0x03) << 4) | (((output >> 8) & 0x03) << 6);
+    uint32_t buf = p->SHIFTBUF[3];
+    data = (((buf >> 28) & 0x0F) << 4) | ((buf >> 22) & 0x0F);
 
-    //Serial.printf("Dummy 0x%x, data 0x%x\n", dummy, data);
+    Serial.printf("Dummy 0x%x, data 0x%x\n", dummy, buf);
     
     
     //Set FlexIO back to Write mode
@@ -1164,7 +1162,7 @@ FASTRUN void ILI948x_t40_p::FlexIO_Config_SnglBeat()
     p->CTRL |= FLEXIO_CTRL_SWRST;
     p->CTRL &= ~FLEXIO_CTRL_SWRST;
 
-    gpioWrite();
+    //gpioWrite();
 
     /* Configure the shifters */
     p->SHIFTCFG[0] = 
@@ -1232,10 +1230,7 @@ FASTRUN void ILI948x_t40_p::FlexIO_Clear_Config_SnglBeat(){
 
 FASTRUN void ILI948x_t40_p::SglBeatWR_nPrm_8(uint32_t const cmd, const uint8_t *value = NULL, uint32_t const length = 0)
 {
-  while(WR_DMATransferDone == false)
-  {
-    //Wait for any DMA transfers to complete
-  }
+  
 
     FlexIO_Config_SnglBeat();
      uint32_t i;
@@ -1246,7 +1241,8 @@ FASTRUN void ILI948x_t40_p::SglBeatWR_nPrm_8(uint32_t const cmd, const uint8_t *
     DCLow();
 
     /* Write command index */
-    p->SHIFTBUF[0] = ((cmd & 0x0F) <<0) | (((cmd >> 4) & 0x0F) << 6);
+    //Serial.printf("CMD: 0x%X, SHIFT: 0x%X \n", cmd,((cmd & 0x0F) | (((cmd & 0xF0) >> 4) << 6)));
+    p->SHIFTBUF[0] = (cmd & 0x0F) | (((cmd & 0xF0) >> 4) << 6);
 
     /*Wait for transfer to be completed */
     while(0 == (p->SHIFTSTAT & (1 << 0)))
@@ -1267,7 +1263,8 @@ FASTRUN void ILI948x_t40_p::SglBeatWR_nPrm_8(uint32_t const cmd, const uint8_t *
         for(i = 0; i < length; i++)
         {    
             uint8_t buf = *value++;
-            p->SHIFTBUF[0] = (((buf & 0x0F) << 0) | (((buf >> 4)& 0x0F)<< 6));
+            //Serial.printf("Buf: 0x%X, SHIFT: 0x%X \n", buf,(buf & 0x0F) | (((buf & 0xF0) >> 4) << 6) );
+            p->SHIFTBUF[0] = (uint32_t)(buf & 0x0F) | (((buf & 0xF0) >> 4) << 6) ;
             while(0 == (p->SHIFTSTAT & (1 << 0)))
             {  
             }
@@ -1283,19 +1280,18 @@ FASTRUN void ILI948x_t40_p::SglBeatWR_nPrm_8(uint32_t const cmd, const uint8_t *
 
 FASTRUN void ILI948x_t40_p::SglBeatWR_nPrm_16(uint32_t const cmd, const uint16_t *value, uint32_t const length)
 {
- while(WR_DMATransferDone == false)
-  {
-    //Wait for any DMA transfers to complete
-  }
+ 
     FlexIO_Config_SnglBeat();
     uint16_t buf;
+    uint8_t highByte, lowByte;
     /* Assert CS, RS pins */
     CSLow();
     DCLow();
     //microSecondDelay();
     
     /* Write command index */
-    p->SHIFTBUF[0] = ((cmd & 0x0F) <<0) | (((cmd >> 4) & 0x0F) << 6);
+    p->SHIFTBUF[0] = (cmd & 0x0F) | (((cmd & 0xF0) >> 4) << 6);
+    //p->SHIFTBUF[0] = ((uint32_t)(cmd & 0xF0) << 24) | ((uint32_t)(cmd & 0x0F) << 19);
 
     /*Wait for transfer to be completed */
     while(0 == (p->TIMSTAT & (1 << 0)))
@@ -1310,30 +1306,32 @@ FASTRUN void ILI948x_t40_p::SglBeatWR_nPrm_16(uint32_t const cmd, const uint16_t
     {
       for(uint32_t i=0; i<length-1U; i++)
         {
-          buf = *value++;
+        buf = *value++;
+        highByte = (buf >> 8) & 0xFF;
+        lowByte = buf & 0xFF;
             while(0 == (p->SHIFTSTAT & (1U << 0)))
             {
             }
-            p->SHIFTBUF[0] = (((buf & 0x0F) << 0) | (((buf >> 4)& 0x0F)<< 6)) >> 8;
+            p->SHIFTBUF[0] = ((highByte & 0x0F) | (((highByte & 0xF0) >> 4) << 6) ) >> 8 & 0xFF;
 
             while(0 == (p->SHIFTSTAT & (1U << 0)))
             {
             }
-            p->SHIFTBUF[0] = (((buf & 0x0F) << 0) | (((buf >> 4)& 0x0F)<< 6)) & 0xFF;
+            p->SHIFTBUF[0] = ((lowByte & 0x0F) | (((lowByte & 0xF0) >> 4) << 6)) & 0xFF;
         }
         buf = *value++;
+        highByte = (buf >> 8) & 0xFF;
+        lowByte = buf & 0xFF;
         /* Write the last byte */
         while(0 == (p->SHIFTSTAT & (1U << 0)))
             {
             }
-        p->SHIFTBUF[0] = (((buf & 0x0F) << 0) | (((buf >> 4)& 0x0F)<< 6)) >> 8;
+            p->SHIFTBUF[0] = ((highByte & 0x0F) | (((highByte & 0xF0) >> 4) << 6) ) >> 8 & 0xFF;
 
-        while(0 == (p->SHIFTSTAT & (1U << 0)))
-        {
-        }
-        p->TIMSTAT |= (1U << 0);
-
-        p->SHIFTBUF[0] = (((buf & 0x0F) << 0) | (((buf >> 4)& 0x0F)<< 6)) & 0xFF;
+            while(0 == (p->SHIFTSTAT & (1U << 0)))
+            {
+            }
+            p->SHIFTBUF[0] = ((lowByte & 0x0F) | (((lowByte & 0xF0) >> 4) << 6)) & 0xFF;
 
         /*Wait for transfer to be completed */
         while(0 == (p->TIMSTAT |= (1U << 0)))
