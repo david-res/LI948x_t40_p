@@ -1115,8 +1115,10 @@ FASTRUN uint8_t ILI948x_t40_p::readCommand(uint8_t const cmd){
     DCLow();
 
     /* Write command index */
-    Serial.printf("CMD: 0x%X, SHIFT: 0x%X \n", cmd,((cmd & 0x0F) | (((cmd & 0xF0) >> 4) << 6)));
-    p->SHIFTBUF[0] = (cmd & 0x0F) | (((cmd & 0xF0) >> 4) << 6);
+    //Serial.printf("CMD: 0x%X, SHIFT: 0x%X \n", cmd,((cmd & 0x0F) | (((cmd & 0xF0) >> 4) << 6)));
+    //p->SHIFTBUF[0] = (cmd & 0x0F) | (((cmd & 0xF0) >> 4) << 6);|
+    p->SHIFTBUF[0] = (uint32_t)(cmd & 0x0F) | (cmd >> 4 & 0x0F) << 6;
+    Serial.printf("CMD: 0x%X, SHIFT: 0x%X \n", cmd, p->SHIFTBUF[0]);
 
     /*Wait for transfer to be completed */
     while(0 == (p->SHIFTSTAT & (1 << 0)))
@@ -1144,9 +1146,14 @@ FASTRUN uint8_t ILI948x_t40_p::readCommand(uint8_t const cmd){
         {
         }
     uint32_t buf = p->SHIFTBUF[3];
-    data = (((buf >> 28) & 0x0F) << 4) | ((buf >> 22) & 0x0F);
 
-    Serial.printf("Dummy 0x%x, data 0x%x\n", dummy, buf);
+    // low = flex_io & 0x0F
+    // high = (flex_io >> 6 & 0x0F) << 4
+    // data = low | high
+    data = (buf & 0x0F) | ((buf >> 6 & 0x0F) << 4);
+    //data = (((buf >> 28) & 0x0F) << 4) | ((buf >> 22) & 0x0F);
+
+    Serial.printf("Dummy 0x%x,  buf 0x%x, data 0x%x\n", dummy, buf, data);
     
     
     //Set FlexIO back to Write mode
@@ -1241,8 +1248,12 @@ FASTRUN void ILI948x_t40_p::SglBeatWR_nPrm_8(uint32_t const cmd, const uint8_t *
     DCLow();
 
     /* Write command index */
-    //Serial.printf("CMD: 0x%X, SHIFT: 0x%X \n", cmd,((cmd & 0x0F) | (((cmd & 0xF0) >> 4) << 6)));
-    p->SHIFTBUF[0] = (cmd & 0x0F) | (((cmd & 0xF0) >> 4) << 6);
+
+    // high_nibble = cmd >> 4 & 0x0F
+    // low_nibble = cmd & 0x0F
+    // flex_io = low_nibble | high_nibble << 6
+    p->SHIFTBUF[0] = (cmd & 0x0F) | (cmd >> 4 & 0x0F) << 6;
+    Serial.printf("SglBeatWR_nPrm_8 - CMD: 0x%X, SHIFT: 0x%X \n", cmd, p->SHIFTBUF[0]);
 
     /*Wait for transfer to be completed */
     while(0 == (p->SHIFTSTAT & (1 << 0)))
@@ -1263,8 +1274,10 @@ FASTRUN void ILI948x_t40_p::SglBeatWR_nPrm_8(uint32_t const cmd, const uint8_t *
         for(i = 0; i < length; i++)
         {    
             uint8_t buf = *value++;
-            //Serial.printf("Buf: 0x%X, SHIFT: 0x%X \n", buf,(buf & 0x0F) | (((buf & 0xF0) >> 4) << 6) );
-            p->SHIFTBUF[0] = (uint32_t)(buf & 0x0F) | (((buf & 0xF0) >> 4) << 6) ;
+            
+            p->SHIFTBUF[0] = (uint32_t)(buf & 0x0F) | (buf >> 4 & 0x0F) << 6;
+            //Serial.printf("Buf: 0x%X, SHIFT: 0x%X \n", buf, p->SHIFTBUF[0]);
+
             while(0 == (p->SHIFTSTAT & (1 << 0)))
             {  
             }
@@ -1290,13 +1303,15 @@ FASTRUN void ILI948x_t40_p::SglBeatWR_nPrm_16(uint32_t const cmd, const uint16_t
     //microSecondDelay();
     
     /* Write command index */
-    p->SHIFTBUF[0] = (cmd & 0x0F) | (((cmd & 0xF0) >> 4) << 6);
+    p->SHIFTBUF[0] = (uint32_t)(cmd & 0x0F) | (cmd >> 4 & 0x0F) << 6;
+    Serial.printf("SglBeatWR_nPrm_16 - CMD: 0x%X, SHIFT: 0x%X \n", cmd, p->SHIFTBUF[0]);
+
     //p->SHIFTBUF[0] = ((uint32_t)(cmd & 0xF0) << 24) | ((uint32_t)(cmd & 0x0F) << 19);
 
     /*Wait for transfer to be completed */
     while(0 == (p->TIMSTAT & (1 << 0)))
-            {  
-            }
+    {  
+    }
     microSecondDelay();
     /* De-assert RS pin */
     DCHigh();
@@ -1305,20 +1320,23 @@ FASTRUN void ILI948x_t40_p::SglBeatWR_nPrm_16(uint32_t const cmd, const uint16_t
     if(length)
     {
       for(uint32_t i=0; i<length-1U; i++)
-        {
+      {
         buf = *value++;
         highByte = (buf >> 8) & 0xFF;
         lowByte = buf & 0xFF;
-            while(0 == (p->SHIFTSTAT & (1U << 0)))
-            {
-            }
-            p->SHIFTBUF[0] = ((highByte & 0x0F) | (((highByte & 0xF0) >> 4) << 6) ) >> 8 & 0xFF;
 
-            while(0 == (p->SHIFTSTAT & (1U << 0)))
-            {
-            }
-            p->SHIFTBUF[0] = ((lowByte & 0x0F) | (((lowByte & 0xF0) >> 4) << 6)) & 0xFF;
+        while(0 == (p->SHIFTSTAT & (1U << 0)))
+        {
         }
+        p->SHIFTBUF[0] = ((highByte & 0x0F) | (highByte >> 4 & 0x0F) << 6) >> 8 & 0xFF;
+        //p->SHIFTBUF[0] = ((highByte & 0x0F) | (((highByte & 0xF0) >> 4) << 6) ) >> 8 & 0xFF;
+
+        while(0 == (p->SHIFTSTAT & (1U << 0)))
+        {
+        }
+        p->SHIFTBUF[0] = ((lowByte & 0x0F) | (lowByte >> 4 & 0x0F) << 6) & 0xFF;
+        //p->SHIFTBUF[0] = ((lowByte & 0x0F) | (((lowByte & 0xF0) >> 4) << 6)) & 0xFF;
+      }
         buf = *value++;
         highByte = (buf >> 8) & 0xFF;
         lowByte = buf & 0xFF;
@@ -1326,12 +1344,14 @@ FASTRUN void ILI948x_t40_p::SglBeatWR_nPrm_16(uint32_t const cmd, const uint16_t
         while(0 == (p->SHIFTSTAT & (1U << 0)))
             {
             }
-            p->SHIFTBUF[0] = ((highByte & 0x0F) | (((highByte & 0xF0) >> 4) << 6) ) >> 8 & 0xFF;
+            p->SHIFTBUF[0] = ((highByte & 0x0F) | (highByte >> 4 & 0x0F) << 6) >> 8 & 0xFF;
+            //p->SHIFTBUF[0] = ((highByte & 0x0F) | (((highByte & 0xF0) >> 4) << 6) ) >> 8 & 0xFF;
 
             while(0 == (p->SHIFTSTAT & (1U << 0)))
             {
             }
-            p->SHIFTBUF[0] = ((lowByte & 0x0F) | (((lowByte & 0xF0) >> 4) << 6)) & 0xFF;
+            p->SHIFTBUF[0] = ((lowByte & 0x0F) | (lowByte >> 4 & 0x0F) << 6) & 0xFF;
+            //p->SHIFTBUF[0] = ((lowByte & 0x0F) | (((lowByte & 0xF0) >> 4) << 6)) & 0xFF;
 
         /*Wait for transfer to be completed */
         while(0 == (p->TIMSTAT |= (1U << 0)))
