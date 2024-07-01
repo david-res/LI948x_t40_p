@@ -5,6 +5,18 @@
 #error This library only supports the Teensy 4.0!
 #endif
 
+
+inline uint16_t generate_output_word(uint8_t data) {
+  return (uint16_t)(data & 0x0F) | (uint16_t)((data & 0xF0) << 2);
+}
+
+#define DISPLAY_WR 21
+#define DISPLAY_RD 20
+
+#define FLEX
+
+
+
 FLASHMEM ILI948x_t40_p::ILI948x_t40_p(int8_t dc, int8_t cs, int8_t rst) 
 {
   
@@ -985,15 +997,15 @@ FASTRUN void ILI948x_t40_p::microSecondDelay()
 }
 
 FASTRUN void ILI948x_t40_p::gpioWrite(){
-  pFlex->setIOPinToFlexMode(10);
-  pinMode(12, OUTPUT);
-  digitalWriteFast(12, HIGH);
+  pFlex->setIOPinToFlexMode(DISPLAY_WR);
+  pinMode(DISPLAY_RD, OUTPUT);
+  digitalWriteFast(DISPLAY_RD, HIGH);
 }
 
 FASTRUN void ILI948x_t40_p::gpioRead(){
-  pFlex->setIOPinToFlexMode(12);
-  pinMode(10, OUTPUT);
-  digitalWriteFast(10, HIGH);
+  pFlex->setIOPinToFlexMode(DISPLAY_RD);
+  pinMode(DISPLAY_WR, OUTPUT);
+  digitalWriteFast(DISPLAY_WR, HIGH);
 }
 
 FASTRUN void ILI948x_t40_p::FlexIO_Init()
@@ -1005,8 +1017,8 @@ FASTRUN void ILI948x_t40_p::FlexIO_Init()
     /* Pointer to the hardware structure in the FlexIO channel */
     hw = &pFlex->hardware();
     /* Basic pin setup */
-    pinMode(20, OUTPUT); // FlexIO3:10: RD
-    pinMode(21, OUTPUT); // FlexIO3:11 WR
+    pinMode(DISPLAY_RD, OUTPUT); // FlexIO3:10: RD
+    pinMode(DISPLAY_WR, OUTPUT); // FlexIO3:11 WR
     pinMode(19, OUTPUT); // FlexIO3:0 D0
     pinMode(18, OUTPUT); // FlexIO3:1 |
     pinMode(14, OUTPUT); // FlexIO3:2 |
@@ -1115,8 +1127,8 @@ FASTRUN uint8_t ILI948x_t40_p::readCommand(uint8_t const cmd){
     DCLow();
 
     /* Write command index */
-    Serial.printf("CMD: 0x%X, SHIFT: 0x%X \n", cmd,((cmd & 0x0F) | (((cmd & 0xF0) >> 4) << 6)));
-    p->SHIFTBUF[0] = (cmd & 0x0F) | (((cmd & 0xF0) >> 4) << 6);
+    Serial.printf("CMD: 0x%X, SHIFT: 0x%X \n", cmd,(generate_output_word(cmd)));
+    p->SHIFTBUF[0] = generate_output_word(cmd);
 
     /*Wait for transfer to be completed */
     while(0 == (p->SHIFTSTAT & (1 << 0)))
@@ -1162,7 +1174,7 @@ FASTRUN void ILI948x_t40_p::FlexIO_Config_SnglBeat()
     p->CTRL |= FLEXIO_CTRL_SWRST;
     p->CTRL &= ~FLEXIO_CTRL_SWRST;
 
-    //gpioWrite();
+    gpioWrite();
 
     /* Configure the shifters */
     p->SHIFTCFG[0] = 
@@ -1241,8 +1253,8 @@ FASTRUN void ILI948x_t40_p::SglBeatWR_nPrm_8(uint32_t const cmd, const uint8_t *
     DCLow();
 
     /* Write command index */
-    //Serial.printf("CMD: 0x%X, SHIFT: 0x%X \n", cmd,((cmd & 0x0F) | (((cmd & 0xF0) >> 4) << 6)));
-    p->SHIFTBUF[0] = (cmd & 0x0F) | (((cmd & 0xF0) >> 4) << 6);
+    //Serial.printf("CMD: 0x%X, SHIFT: 0x%X \n", cmd,(generate_output_word(cmd)));
+    p->SHIFTBUF[0] = generate_output_word(cmd);
 
     /*Wait for transfer to be completed */
     while(0 == (p->SHIFTSTAT & (1 << 0)))
@@ -1263,8 +1275,8 @@ FASTRUN void ILI948x_t40_p::SglBeatWR_nPrm_8(uint32_t const cmd, const uint8_t *
         for(i = 0; i < length; i++)
         {    
             uint8_t buf = *value++;
-            //Serial.printf("Buf: 0x%X, SHIFT: 0x%X \n", buf,(buf & 0x0F) | (((buf & 0xF0) >> 4) << 6) );
-            p->SHIFTBUF[0] = (uint32_t)(buf & 0x0F) | (((buf & 0xF0) >> 4) << 6) ;
+            //Serial.printf("Buf: 0x%X, SHIFT: 0x%X \n", buf,generate_output_word(buf) );
+            p->SHIFTBUF[0] = (uint32_t)generate_output_word(buf) ;
             while(0 == (p->SHIFTSTAT & (1 << 0)))
             {  
             }
@@ -1290,7 +1302,7 @@ FASTRUN void ILI948x_t40_p::SglBeatWR_nPrm_16(uint32_t const cmd, const uint16_t
     //microSecondDelay();
     
     /* Write command index */
-    p->SHIFTBUF[0] = (cmd & 0x0F) | (((cmd & 0xF0) >> 4) << 6);
+    p->SHIFTBUF[0] = generate_output_word(cmd);
     //p->SHIFTBUF[0] = ((uint32_t)(cmd & 0xF0) << 24) | ((uint32_t)(cmd & 0x0F) << 19);
 
     /*Wait for transfer to be completed */
@@ -1312,12 +1324,12 @@ FASTRUN void ILI948x_t40_p::SglBeatWR_nPrm_16(uint32_t const cmd, const uint16_t
             while(0 == (p->SHIFTSTAT & (1U << 0)))
             {
             }
-            p->SHIFTBUF[0] = ((highByte & 0x0F) | (((highByte & 0xF0) >> 4) << 6) ) >> 8 & 0xFF;
+            p->SHIFTBUF[0] = generate_output_word(highByte) ;
 
             while(0 == (p->SHIFTSTAT & (1U << 0)))
             {
             }
-            p->SHIFTBUF[0] = ((lowByte & 0x0F) | (((lowByte & 0xF0) >> 4) << 6)) & 0xFF;
+            p->SHIFTBUF[0] = generate_output_word(lowByte);
         }
         buf = *value++;
         highByte = (buf >> 8) & 0xFF;
@@ -1326,12 +1338,12 @@ FASTRUN void ILI948x_t40_p::SglBeatWR_nPrm_16(uint32_t const cmd, const uint16_t
         while(0 == (p->SHIFTSTAT & (1U << 0)))
             {
             }
-            p->SHIFTBUF[0] = ((highByte & 0x0F) | (((highByte & 0xF0) >> 4) << 6) ) >> 8 & 0xFF;
+            p->SHIFTBUF[0] = generate_output_word(highByte);
 
             while(0 == (p->SHIFTSTAT & (1U << 0)))
             {
             }
-            p->SHIFTBUF[0] = ((lowByte & 0x0F) | (((lowByte & 0xF0) >> 4) << 6)) & 0xFF;
+            p->SHIFTBUF[0] = generate_output_word(lowByte);
 
         /*Wait for transfer to be completed */
         while(0 == (p->TIMSTAT |= (1U << 0)))
