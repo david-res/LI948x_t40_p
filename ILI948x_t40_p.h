@@ -5,8 +5,8 @@
 
 //#define ILI9481_1
 //#define ILI9481_2
-#define ILI9486
-//#define ILI9488
+//#define ILI9486
+#define ILI9488
 //#define R61529
 
 #include "Arduino.h"
